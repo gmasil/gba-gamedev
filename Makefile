@@ -102,7 +102,7 @@ export OFILES_SOURCES := $(CPPFILES:.cpp=.o) $(CFILES:.c=.o) $(SFILES:.s=.o)
 
 export OFILES := $(OFILES_BIN) $(OFILES_SOURCES)
 
-export HFILES := $(addsuffix .h,$(subst .,_,$(BINFILES)))
+export HFILES := $(addsuffix .h,$(subst .,_,$(BINFILES))) data.h
 
 export INCLUDE	:=	$(foreach dir,$(INCLUDES),-iquote $(CURDIR)/$(dir)) \
 					$(foreach dir,$(LIBDIRS),-I$(dir)/include) \
@@ -122,8 +122,7 @@ $(BUILD):
 #---------------------------------------------------------------------------------
 clean:
 	@echo clean ...
-	@rm -fr $(BUILD) $(TARGET).elf $(TARGET).gba $(TARGET).sav
-
+	@rm -fr $(BUILD) $(TARGET).elf $(TARGET).gba $(TARGET).sav tools/bmp
 
 #---------------------------------------------------------------------------------
 else
@@ -157,6 +156,15 @@ soundbank.bin soundbank.h : $(AUDIOFILES)
 #---------------------------------------------------------------------------------
 	@echo $(notdir $<)
 	@$(bin2o)
+
+#---------------------------------------------------------------------------------
+# generated headers required by source compilation
+#---------------------------------------------------------------------------------
+../tools/bmp: ../tools/bmp.c
+	gcc -Wall -Wextra -O2 -o $@ $<
+
+data.h: ../tools/bmp ../data/bagger.bmp
+	@$< $(word 2,$^) $@
 
 
 -include $(DEPSDIR)/*.d

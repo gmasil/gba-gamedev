@@ -77,7 +77,12 @@ unsigned char *read_bmp_data(char *filename, unsigned int *width, unsigned int *
     fseek(file, dataPos, SEEK_SET);
 
     // Read the actual data from the file into the buffer
-    fread(data, 1, imageSize, file);
+    if (fread(data, 1, imageSize, file) != imageSize) {
+        printf("Could not read BMP pixel data\n");
+        free(data);
+        fclose(file);
+        return 0;
+    }
 
     // Everything is in memory now, the file can be closed.
     fclose(file);
@@ -101,31 +106,31 @@ int convert_bmp(char *input_filename, char *output_filename) {
     FILE *output_file;
 
     bmp_888_data = read_bmp_data(input_filename, &width, &height);
-    
-    if(width != 240 || height != 160){
+
+    if (width != 240 || height != 160) {
         printf("The bitmap '%s' must be 240x160, but is %ux%u\n", input_filename, width, height);
         free(bmp_888_data);
         return -1;
     }
 
-    rgb_555_data = malloc(240*160*2);
+    rgb_555_data = malloc(240 * 160 * 2);
 
     remove(output_filename);
 
     output_file = fopen(output_filename, "w");
-    if(!output_file) {
+    if (!output_file) {
         printf("Cannot open '%s'\n", output_filename);
         return -2;
     }
 
     fprintf(output_file, "static unsigned short data[] = { ");
 
-    for(i = 0; i < 240 * 160; i++) {
-        r = *bmp_888_data++;
-        g = *bmp_888_data++;
-        b = *bmp_888_data++;
+    for (i = 0; i < 240 * 160; i++) {
+        r             = *bmp_888_data++;
+        g             = *bmp_888_data++;
+        b             = *bmp_888_data++;
         *rgb_555_data = ((r >> 3) << 10) + ((g >> 3) << 5) + (b >> 3);
-        if(i != 0) {
+        if (i != 0) {
             fprintf(output_file, ", ");
         }
         fprintf(output_file, "%d", *rgb_555_data);
@@ -138,7 +143,7 @@ int convert_bmp(char *input_filename, char *output_filename) {
 }
 
 int main(int argc, char **argv) {
-    if(argc != 3) {
+    if (argc != 3) {
         printf("Usage: %s input.bmp output.c\n", argv[0]);
         return -1;
     }

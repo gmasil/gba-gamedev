@@ -53,7 +53,7 @@ LIBS	:= -lmm -lgba
 # list of directories containing libraries, this must be the top level containing
 # include and lib
 #---------------------------------------------------------------------------------
-LIBDIRS	:=	$(LIBGBA)
+LIBDIRS	:=	$(LIBGBA) $(DEVKITPRO)/libtonc
 
 #---------------------------------------------------------------------------------
 # no real need to edit anything past this point unless you need to add additional
@@ -110,8 +110,10 @@ export INCLUDE	:=	$(foreach dir,$(INCLUDES),-iquote $(CURDIR)/$(dir)) \
 
 export LIBPATHS	:=	$(foreach dir,$(LIBDIRS),-L$(dir)/lib)
 
-.PHONY: $(BUILD) clean
+.PHONY: $(BUILD) clean format all
 
+#---------------------------------------------------------------------------------
+all: $(BUILD)
 #---------------------------------------------------------------------------------
 $(BUILD):
 	@[ -d $@ ] || mkdir -p $@
@@ -120,7 +122,7 @@ $(BUILD):
 #---------------------------------------------------------------------------------
 clean:
 	@echo clean ...
-	@rm -fr $(BUILD) $(TARGET).elf $(TARGET).gba
+	@rm -fr $(BUILD) $(TARGET).elf $(TARGET).gba $(TARGET).sav
 
 
 #---------------------------------------------------------------------------------
@@ -130,9 +132,9 @@ else
 # main targets
 #---------------------------------------------------------------------------------
 
-$(OUTPUT).gba	:	$(OUTPUT).elf
+$(OUTPUT).gba	 :	$(OUTPUT).elf
 
-$(OUTPUT).elf	:	$(OFILES)
+$(OUTPUT).elf	 :	$(OFILES)
 
 $(OFILES_SOURCES) : $(HFILES)
 
@@ -161,3 +163,10 @@ soundbank.bin soundbank.h : $(AUDIOFILES)
 #---------------------------------------------------------------------------------------
 endif
 #---------------------------------------------------------------------------------------
+
+format:
+	find src -type f \( -name '*.c' -o -name '*.h' \) | xargs sed -i '' 's/#if \(.*\)/if (\1) { \/\/ #if-move/g'
+	find src -type f \( -name '*.c' -o -name '*.h' \) | xargs sed -i '' 's/#endif/} \/\/ #endif-move/g'
+	find src -type f \( -name '*.c' -o -name '*.h' \) | xargs clang-format -i
+	find src -type f \( -name '*.c' -o -name '*.h' \) | xargs sed -i '' 's/if (\(.*\)) { \/\/ #if-move/#if \1/g'
+	find src -type f \( -name '*.c' -o -name '*.h' \) | xargs sed -i '' 's/} \/\/ #endif-move/#endif/g'

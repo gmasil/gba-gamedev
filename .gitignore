@@ -1,3 +1,5 @@
+.idea/
+.vscode/
 *.gba
 *.elf
 *.sav

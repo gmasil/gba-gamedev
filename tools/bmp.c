@@ -1,21 +1,30 @@
+#include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 
-unsigned char *read_bmp_data(char *filename, unsigned int *width, unsigned int *height) {
+static uint16_t read_le16(const uint8_t *p) {
+    return (uint16_t)p[0] | ((uint16_t)p[1] << 8);
+}
+
+static uint32_t read_le32(const uint8_t *p) {
+    return (uint32_t)p[0] | ((uint32_t)p[1] << 8) | ((uint32_t)p[2] << 16) | ((uint32_t)p[3] << 24);
+}
+
+static uint8_t *read_bmp_data(const char *filename, unsigned int *width, unsigned int *height) {
     // Data read from the header of the BMP file
-    unsigned char header[54];
-    unsigned int bpp;
-    unsigned int bpp_prefix;
-    unsigned int dataPos;
-    unsigned int imageSize;
+    uint8_t header[54];
+    uint16_t bpp;
+    uint16_t bpp_prefix;
+    uint32_t dataPos;
+    uint32_t imageSize;
     // Actual RGB data
-    unsigned char *data;
+    uint8_t *data;
 
     // Open the file
     FILE *file = fopen(filename, "rb");
     if (!file) {
         printf("File %s could not be opened.\n", filename);
-        return 0;
+        return NULL;
     }
 
     /*
@@ -30,36 +39,36 @@ unsigned char *read_bmp_data(char *filename, unsigned int *width, unsigned int *
      */
 
     // If less than 54 bytes are read, problem
-    if (fread(header, 1, 54, file) != 54) {
+    if (fread(header, 1, sizeof(header), file) != sizeof(header)) {
         printf("Not a correct BMP file\n");
         fclose(file);
-        return 0;
+        return NULL;
     }
     // A BMP files always begins with "BM"
     if (header[0] != 'B' || header[1] != 'M') {
         printf("Not a correct BMP file\n");
         fclose(file);
-        return 0;
+        return NULL;
     }
 
     // Read the information about the image
-    bpp        = *(int *)&(header[0x1C]);
-    bpp_prefix = *(int *)&(header[0x1E]);
-    dataPos    = *(int *)&(header[0x0A]);
-    imageSize  = *(int *)&(header[0x22]);
-    *width     = *(int *)&(header[0x12]);
-    *height    = *(int *)&(header[0x16]);
+    bpp        = read_le16(&header[0x1C]);
+    bpp_prefix = read_le16(&header[0x1E]);
+    dataPos    = read_le32(&header[0x0A]);
+    imageSize  = read_le32(&header[0x22]);
+    *width     = read_le32(&header[0x12]);
+    *height    = read_le32(&header[0x16]);
 
     // Make sure this is a 24bpp file
     if (bpp_prefix != 0) {
         printf("Not a correct BMP file\n");
         fclose(file);
-        return 0;
+        return NULL;
     }
     if (bpp != 24) {
         printf("Not a correct BMP file\n");
         fclose(file);
-        return 0;
+        return NULL;
     }
 
     // Some BMP files are misformatted, guess missing information
@@ -72,16 +81,26 @@ unsigned char *read_bmp_data(char *filename, unsigned int *width, unsigned int *
 
     // Create a buffer
     data = malloc(imageSize);
+    if (!data) {
+        printf("Could not allocate %u bytes for BMP data\n", imageSize);
+        fclose(file);
+        return NULL;
+    }
 
     // skip the rest of the header to where the rgb data starts
-    fseek(file, dataPos, SEEK_SET);
+    if (fseek(file, (long)dataPos, SEEK_SET) != 0) {
+        printf("Could not seek to BMP pixel data\n");
+        free(data);
+        fclose(file);
+        return NULL;
+    }
 
     // Read the actual data from the file into the buffer
     if (fread(data, 1, imageSize, file) != imageSize) {
         printf("Could not read BMP pixel data\n");
         free(data);
         fclose(file);
-        return 0;
+        return NULL;
     }
 
     // Everything is in memory now, the file can be closed.
@@ -90,22 +109,26 @@ unsigned char *read_bmp_data(char *filename, unsigned int *width, unsigned int *
     return data;
 }
 
-int convert_bmp(char *input_filename, char *output_filename) {
-    unsigned char *bmp_888_data;
+static int convert_bmp(const char *input_filename, const char *output_filename) {
+    uint8_t *bmp_888_data;
+    uint8_t *bmp_888_start;
     unsigned int width;
     unsigned int height;
 
     unsigned int i;
 
-    unsigned char r;
-    unsigned char g;
-    unsigned char b;
-
-    unsigned short *rgb_555_data;
+    uint8_t r;
+    uint8_t g;
+    uint8_t b;
+    uint16_t pixel;
 
     FILE *output_file;
 
     bmp_888_data = read_bmp_data(input_filename, &width, &height);
+    if (!bmp_888_data) {
+        return -1;
+    }
+    bmp_888_start = bmp_888_data;
 
     if (width != 240 || height != 160) {
         printf("The bitmap '%s' must be 240x160, but is %ux%u\n", input_filename, width, height);
@@ -113,31 +136,31 @@ int convert_bmp(char *input_filename, char *output_filename) {
         return -1;
     }
 
-    rgb_555_data = malloc(240 * 160 * 2);
-
     remove(output_filename);
 
     output_file = fopen(output_filename, "w");
     if (!output_file) {
         printf("Cannot open '%s'\n", output_filename);
+        free(bmp_888_data);
         return -2;
     }
 
     fprintf(output_file, "static unsigned short data[] = { ");
 
     for (i = 0; i < 240 * 160; i++) {
-        r             = *bmp_888_data++;
-        g             = *bmp_888_data++;
-        b             = *bmp_888_data++;
-        *rgb_555_data = ((r >> 3) << 10) + ((g >> 3) << 5) + (b >> 3);
+        r     = *bmp_888_data++;
+        g     = *bmp_888_data++;
+        b     = *bmp_888_data++;
+        pixel = (uint16_t)(((uint16_t)(r >> 3) << 10) | ((uint16_t)(g >> 3) << 5) | (uint16_t)(b >> 3));
         if (i != 0) {
             fprintf(output_file, ", ");
         }
-        fprintf(output_file, "%d", *rgb_555_data);
-        rgb_555_data++;
+        fprintf(output_file, "%u", (unsigned int)pixel);
     }
 
     fprintf(output_file, " };\n");
+    fclose(output_file);
+    free(bmp_888_start);
 
     return 0;
 }

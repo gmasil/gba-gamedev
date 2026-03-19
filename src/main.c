@@ -229,6 +229,14 @@ int main(void) {
             draw_status_box(ok ? 0x03FF : 0x7C1F);
         }
 
+        if (key_is_down(KEY_B) && key_was_up(KEY_B)) {
+            counter = 0;
+            draw_counter(counter);
+
+            int ok = save_counter_to_backend(counter);
+            draw_status_box(ok ? 0x03E0 : 0x7C1F);
+        }
+
         if (key_is_down(KEY_L) && key_was_up(KEY_L)) {
             save_backend_t backend = save_backend_get();
             if (backend == SAVE_BACKEND_SRAM) {

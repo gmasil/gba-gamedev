@@ -9,119 +9,90 @@ endif
 include $(DEVKITARM)/gba_rules
 
 #---------------------------------------------------------------------------------
-# TARGET is the name of the output
-# BUILD is the directory where object files & intermediate files will be placed
-# SOURCES is a list of directories containing source code
-# INCLUDES is a list of directories containing extra header files
-# DATA is a list of directories containing binary data
-# GRAPHICS is a list of directories containing files to be processed by grit
-#
-# All directories are specified relative to the project directory where
-# the makefile is found
-#
+# project settings
 #---------------------------------------------------------------------------------
-TARGET		:= $(notdir $(CURDIR))
-BUILD		:= build
-SOURCES		:= src
-INCLUDES	:= include
-DATA		:=
-MUSIC		:=
+TARGET := $(notdir $(CURDIR))
+BUILD := build
 
-#---------------------------------------------------------------------------------
-# options for code generation
-#---------------------------------------------------------------------------------
-ARCH	:=	-mthumb -mthumb-interwork
+SRC_C := $(wildcard src/*.c)
+SRC_CPP := $(wildcard src/*.cpp)
+SRC_S := $(wildcard src/*.s)
 
-CFLAGS	:=	-g -Wall -O2\
-		-mcpu=arm7tdmi -mtune=arm7tdmi\
-		$(ARCH)
+OBJ_C := $(patsubst src/%.c,$(BUILD)/%.o,$(SRC_C))
+OBJ_CPP := $(patsubst src/%.cpp,$(BUILD)/%.o,$(SRC_CPP))
+OBJ_S := $(patsubst src/%.s,$(BUILD)/%.o,$(SRC_S))
 
-CFLAGS	+=	$(INCLUDE)
+OFILES := $(OBJ_C) $(OBJ_CPP) $(OBJ_S)
 
-CXXFLAGS	:=	$(CFLAGS) -fno-rtti -fno-exceptions
+DEPS := $(OBJ_C:.o=.d) $(OBJ_CPP:.o=.d) $(OBJ_S:.o=.d)
 
-ASFLAGS	:=	-g $(ARCH)
-LDFLAGS	=	-g $(ARCH) -Wl,-Map,$(notdir $*.map)
-
-#---------------------------------------------------------------------------------
-# any extra libraries we wish to link with the project
-#---------------------------------------------------------------------------------
-LIBS	:= -lmm -lgba
-
-
-#---------------------------------------------------------------------------------
-# list of directories containing libraries, this must be the top level containing
-# include and lib
-#---------------------------------------------------------------------------------
-LIBDIRS	:=	$(LIBGBA) $(DEVKITPRO)/libtonc
-
-#---------------------------------------------------------------------------------
-# no real need to edit anything past this point unless you need to add additional
-# rules for different file extensions
-#---------------------------------------------------------------------------------
-
-
-ifneq ($(BUILD),$(notdir $(CURDIR)))
-#---------------------------------------------------------------------------------
-
-export OUTPUT	:=	$(CURDIR)/$(TARGET)
-
-export VPATH	:=	$(foreach dir,$(SOURCES),$(CURDIR)/$(dir)) \
-			$(foreach dir,$(DATA),$(CURDIR)/$(dir)) \
-			$(foreach dir,$(GRAPHICS),$(CURDIR)/$(dir))
-
-export DEPSDIR	:=	$(CURDIR)/$(BUILD)
-
-CFILES		:=	$(foreach dir,$(SOURCES),$(notdir $(wildcard $(dir)/*.c)))
-CPPFILES	:=	$(foreach dir,$(SOURCES),$(notdir $(wildcard $(dir)/*.cpp)))
-SFILES		:=	$(foreach dir,$(SOURCES),$(notdir $(wildcard $(dir)/*.s)))
-BINFILES	:=	$(foreach dir,$(DATA),$(notdir $(wildcard $(dir)/*.*)))
-
-ifneq ($(strip $(MUSIC)),)
-	export AUDIOFILES	:=	$(foreach dir,$(notdir $(wildcard $(MUSIC)/*.*)),$(CURDIR)/$(MUSIC)/$(dir))
-	BINFILES += soundbank.bin
-endif
-
-#---------------------------------------------------------------------------------
-# use CXX for linking C++ projects, CC for standard C
-#---------------------------------------------------------------------------------
-ifeq ($(strip $(CPPFILES)),)
-#---------------------------------------------------------------------------------
-	export LD	:=	$(CC)
-#---------------------------------------------------------------------------------
+ifeq ($(strip $(SRC_CPP)),)
+LD := $(CC)
 else
-#---------------------------------------------------------------------------------
-	export LD	:=	$(CXX)
-#---------------------------------------------------------------------------------
+LD := $(CXX)
 endif
+
+LIBS := -lmm -lgba
+LIBDIRS := $(LIBGBA) $(DEVKITPRO)/libtonc
+LIBPATHS := $(foreach dir,$(LIBDIRS),-L$(dir)/lib)
+
+ARCH := -mthumb -mthumb-interwork
+
+CFLAGS := -g -Wall -O2 \
+	-mcpu=arm7tdmi -mtune=arm7tdmi \
+	$(ARCH)
+
+INCLUDE := -iquote $(CURDIR)/include \
+	$(foreach dir,$(LIBDIRS),-I$(dir)/include) \
+	-I$(CURDIR)/$(BUILD)
+
+CFLAGS += $(INCLUDE)
+CXXFLAGS := $(CFLAGS) -fno-rtti -fno-exceptions
+ASFLAGS := -g $(ARCH)
+LDFLAGS := -g $(ARCH) -Wl,-Map,$(BUILD)/$(TARGET).map
+
+.PHONY: all clean format run
+
 #---------------------------------------------------------------------------------
-
-export OFILES_BIN := $(addsuffix .o,$(BINFILES))
-
-export OFILES_SOURCES := $(CPPFILES:.cpp=.o) $(CFILES:.c=.o) $(SFILES:.s=.o)
-
-export OFILES := $(OFILES_BIN) $(OFILES_SOURCES)
-
-export HFILES := $(addsuffix .h,$(subst .,_,$(BINFILES))) image.h
-
-export INCLUDE	:=	$(foreach dir,$(INCLUDES),-iquote $(CURDIR)/$(dir)) \
-					$(foreach dir,$(LIBDIRS),-I$(dir)/include) \
-					-I$(CURDIR)/$(BUILD)
-
-export LIBPATHS	:=	$(foreach dir,$(LIBDIRS),-L$(dir)/lib)
-
-.PHONY: $(BUILD) clean format all run
-
-#---------------------------------------------------------------------------------
-all: $(BUILD)
-#---------------------------------------------------------------------------------
-$(BUILD):
-	@[ -d $@ ] || mkdir -p $@
-	@$(MAKE) --no-print-directory -C $(BUILD) -f $(CURDIR)/Makefile
+all: $(TARGET).gba
 
 #---------------------------------------------------------------------------------
 run: all
-	@mGBA gba-gamedev.gba
+	@mGBA $(TARGET).gba
+
+#---------------------------------------------------------------------------------
+$(BUILD):
+	@[ -d $@ ] || mkdir -p $@
+
+#---------------------------------------------------------------------------------
+$(TARGET).gba: $(TARGET).elf
+
+$(TARGET).elf: $(OFILES)
+
+$(OFILES): $(BUILD)/image.h
+
+#---------------------------------------------------------------------------------
+$(BUILD)/%.o: src/%.c | $(BUILD)
+	@echo $(notdir $<)
+	@$(CC) -MMD -MP -MF $(BUILD)/$*.d $(_EXTRADEFS) $(CPPFLAGS) $(CFLAGS) -c $< -o $@ $(ERROR_FILTER)
+
+$(BUILD)/%.o: src/%.cpp | $(BUILD)
+	@echo $(notdir $<)
+	@$(CXX) -MMD -MP -MF $(BUILD)/$*.d $(_EXTRADEFS) $(CPPFLAGS) $(CXXFLAGS) -c $< -o $@ $(ERROR_FILTER)
+
+$(BUILD)/%.o: src/%.s | $(BUILD)
+	@echo $(notdir $<)
+	@$(CC) -MMD -MP -MF $(BUILD)/$*.d -x assembler-with-cpp $(_EXTRADEFS) $(CPPFLAGS) $(ASFLAGS) -c $< -o $@ $(ERROR_FILTER)
+
+#---------------------------------------------------------------------------------
+tools/bmp: tools/bmp.c
+	gcc -Wall -Wextra -O2 -o $@ $<
+
+$(BUILD)/image.bmp: data/image.png | $(BUILD)
+	magick $< -flatten BMP3:$@
+
+$(BUILD)/image.h: tools/bmp $(BUILD)/image.bmp | $(BUILD)
+	@tools/bmp $(BUILD)/image.bmp $@
 
 #---------------------------------------------------------------------------------
 clean:
@@ -129,59 +100,11 @@ clean:
 	@rm -fr $(BUILD) $(TARGET).elf $(TARGET).gba $(TARGET).sav tools/bmp
 
 #---------------------------------------------------------------------------------
-else
-
-#---------------------------------------------------------------------------------
-# main targets
-#---------------------------------------------------------------------------------
-
-$(OUTPUT).gba	 :	$(OUTPUT).elf
-
-$(OUTPUT).elf	 :	$(OFILES)
-
-$(OFILES_SOURCES) : $(HFILES)
-
-#---------------------------------------------------------------------------------
-# The bin2o rule should be copied and modified
-# for each extension used in the data directories
-#---------------------------------------------------------------------------------
-
-#---------------------------------------------------------------------------------
-# rule to build soundbank from music files
-#---------------------------------------------------------------------------------
-soundbank.bin soundbank.h : $(AUDIOFILES)
-#---------------------------------------------------------------------------------
-	@mmutil $^ -osoundbank.bin -hsoundbank.h
-
-#---------------------------------------------------------------------------------
-# This rule links in binary data with the .bin extension
-#---------------------------------------------------------------------------------
-%.bin.o	%_bin.h :	%.bin
-#---------------------------------------------------------------------------------
-	@echo $(notdir $<)
-	@$(bin2o)
-
-#---------------------------------------------------------------------------------
-# generated headers required by source compilation
-#---------------------------------------------------------------------------------
-../tools/bmp: ../tools/bmp.c
-	gcc -Wall -Wextra -O2 -o $@ $<
-
-image.bmp: ../data/image.png
-	magick $^ -flatten BMP3:$@
-
-image.h: ../tools/bmp image.bmp
-	@$< $(word 2,$^) $@
-
-
--include $(DEPSDIR)/*.d
-#---------------------------------------------------------------------------------------
-endif
-#---------------------------------------------------------------------------------------
-
 format:
 	find src -type f \( -name '*.c' -o -name '*.h' \) | xargs sed -i '' 's/#if \(.*\)/if (\1) { \/\/ #if-move/g'
 	find src -type f \( -name '*.c' -o -name '*.h' \) | xargs sed -i '' 's/#endif/} \/\/ #endif-move/g'
 	find src -type f \( -name '*.c' -o -name '*.h' \) | xargs clang-format -i
 	find src -type f \( -name '*.c' -o -name '*.h' \) | xargs sed -i '' 's/if (\(.*\)) { \/\/ #if-move/#if \1/g'
 	find src -type f \( -name '*.c' -o -name '*.h' \) | xargs sed -i '' 's/} \/\/ #endif-move/#endif/g'
+
+-include $(DEPS)

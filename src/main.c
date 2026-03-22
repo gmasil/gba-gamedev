@@ -7,7 +7,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 
-#include "data.h"
+#include "image.h"
 #include "save_backend.h"
 
 u16 __key_curr = 0;
@@ -195,7 +195,7 @@ int main(void) {
     REG_DISPCNT = DCNT_MODE3 | DCNT_BG2;
 
     for (u32 i = 0; i < 240 * 160; i++) {
-        vid_mem[i] = data[240 * 160 - i];
+        vid_mem[i] = data[i];
     }
 
     save_backend_init();

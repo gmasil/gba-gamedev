@@ -102,7 +102,7 @@ export OFILES_SOURCES := $(CPPFILES:.cpp=.o) $(CFILES:.c=.o) $(SFILES:.s=.o)
 
 export OFILES := $(OFILES_BIN) $(OFILES_SOURCES)
 
-export HFILES := $(addsuffix .h,$(subst .,_,$(BINFILES))) data.h
+export HFILES := $(addsuffix .h,$(subst .,_,$(BINFILES))) image.h
 
 export INCLUDE	:=	$(foreach dir,$(INCLUDES),-iquote $(CURDIR)/$(dir)) \
 					$(foreach dir,$(LIBDIRS),-I$(dir)/include) \
@@ -110,7 +110,7 @@ export INCLUDE	:=	$(foreach dir,$(INCLUDES),-iquote $(CURDIR)/$(dir)) \
 
 export LIBPATHS	:=	$(foreach dir,$(LIBDIRS),-L$(dir)/lib)
 
-.PHONY: $(BUILD) clean format all
+.PHONY: $(BUILD) clean format all run
 
 #---------------------------------------------------------------------------------
 all: $(BUILD)
@@ -118,6 +118,10 @@ all: $(BUILD)
 $(BUILD):
 	@[ -d $@ ] || mkdir -p $@
 	@$(MAKE) --no-print-directory -C $(BUILD) -f $(CURDIR)/Makefile
+
+#---------------------------------------------------------------------------------
+run: all
+	@mGBA gba-gamedev.gba
 
 #---------------------------------------------------------------------------------
 clean:
@@ -163,7 +167,10 @@ soundbank.bin soundbank.h : $(AUDIOFILES)
 ../tools/bmp: ../tools/bmp.c
 	gcc -Wall -Wextra -O2 -o $@ $<
 
-data.h: ../tools/bmp ../data/bagger.bmp
+image.bmp: ../data/image.png
+	magick $^ -flatten BMP3:$@
+
+image.h: ../tools/bmp image.bmp
 	@$< $(word 2,$^) $@
 
 

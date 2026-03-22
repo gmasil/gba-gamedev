@@ -116,6 +116,8 @@ static int convert_bmp(const char *input_filename, const char *output_filename) 
     unsigned int height;
 
     unsigned int i;
+    unsigned int x;
+    unsigned int y;
 
     uint8_t r;
     uint8_t g;
@@ -147,15 +149,21 @@ static int convert_bmp(const char *input_filename, const char *output_filename) 
 
     fprintf(output_file, "static unsigned short data[] = { ");
 
-    for (i = 0; i < 240 * 160; i++) {
-        r     = *bmp_888_data++;
-        g     = *bmp_888_data++;
-        b     = *bmp_888_data++;
-        pixel = (uint16_t)(((uint16_t)(r >> 3) << 10) | ((uint16_t)(g >> 3) << 5) | (uint16_t)(b >> 3));
-        if (i != 0) {
-            fprintf(output_file, ", ");
+    i = 0;
+    for (y = 0; y < height; y++) {
+        unsigned int src_y = height - 1 - y;
+        for (x = 0; x < width; x++) {
+            unsigned int src_index = (src_y * width + x) * 3;
+            r                      = bmp_888_start[src_index + 0];
+            g                      = bmp_888_start[src_index + 1];
+            b                      = bmp_888_start[src_index + 2];
+            pixel                  = (uint16_t)(((uint16_t)(r >> 3) << 10) | ((uint16_t)(g >> 3) << 5) | (uint16_t)(b >> 3));
+            if (i != 0) {
+                fprintf(output_file, ", ");
+            }
+            fprintf(output_file, "%u", (unsigned int)pixel);
+            i++;
         }
-        fprintf(output_file, "%u", (unsigned int)pixel);
     }
 
     fprintf(output_file, " };\n");

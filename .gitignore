@@ -4,5 +4,6 @@
 *.elf
 *.sav
 build/
+build_*/
 tools/bmp
 

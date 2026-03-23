@@ -22,7 +22,6 @@ u16 __key_prev = 0;
 #define KEY_UP 0x0040
 #define KEY_DOWN 0x0080
 #define KEY_R 0x0100
-#define KEY_L 0x0200
 
 #define KEY_MASK 0x03FF
 
@@ -237,25 +236,6 @@ int main(void) {
             draw_status_box(ok ? 0x03E0 : 0x7C1F);
         }
 
-        if (key_is_down(KEY_L) && key_was_up(KEY_L)) {
-            save_backend_t backend = save_backend_get();
-            if (backend == SAVE_BACKEND_SRAM) {
-                save_backend_set(SAVE_BACKEND_FLASH_END_8K);
-                if (load_counter_from_backend(&counter)) {
-                    draw_status_box(0x03E0);
-                } else {
-                    draw_status_box(0x7C00);
-                }
-            } else {
-                save_backend_set(SAVE_BACKEND_SRAM);
-                if (load_counter_from_backend(&counter)) {
-                    draw_status_box(0x03E0);
-                } else {
-                    draw_status_box(0x7C00);
-                }
-            }
-            draw_counter(counter);
-        }
         wait_vblank();
     }
 }

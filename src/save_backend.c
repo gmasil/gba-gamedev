@@ -13,7 +13,11 @@
 #define FLASH_MAGIC2 0x45u
 #define FLASH_MAGIC3 0x31u
 
-static save_backend_t g_backend = SAVE_BACKEND_FLASH_END_8K;
+#ifndef DEFAULT_SAVE_BACKEND
+#define DEFAULT_SAVE_BACKEND SAVE_BACKEND_FLASH_END_8K
+#endif
+
+static save_backend_t g_backend = DEFAULT_SAVE_BACKEND;
 
 static int sram_write8_array(const u8 *src) {
     for (int i = 0; i < 8; i++) {
@@ -142,7 +146,7 @@ static int flash_end_read8(u8 *dst) {
 }
 
 void save_backend_init(void) {
-    g_backend = SAVE_BACKEND_FLASH_END_8K;
+    g_backend = DEFAULT_SAVE_BACKEND;
 }
 
 void save_backend_set(save_backend_t backend) {

@@ -47,6 +47,8 @@
 
 #define SKY_COLOR RGB5(18, 20, 24)
 #define WATER_SPARKLE RGB5(19, 24, 31)
+#define WATER_WAVE_LIGHT RGB5(10, 16, 30)
+#define WATER_WAVE_DARK RGB5(4, 8, 19)
 
 #define CURSOR_GOLD_DARK RGB5(18, 13, 1)
 #define CURSOR_GOLD RGB5(27, 20, 4)
@@ -176,6 +178,22 @@ static inline void put_pixel_safe(u16 *dst, int x, int y, u16 color) {
     dst[y * SCREEN_WIDTH + x] = color;
 }
 
+static inline int is_water_surface_color(u16 color) {
+    const tile_sprite_t *water = &g_tile_sprites[2];
+    return color == water->base || color == water->light || color == water->dark || color == WATER_SPARKLE || color == WATER_WAVE_LIGHT || color == WATER_WAVE_DARK;
+}
+
+static inline void put_water_pixel(u16 *dst, int x, int y, u16 color) {
+    if ((unsigned int)x >= SCREEN_WIDTH || (unsigned int)y >= SCREEN_HEIGHT) {
+        return;
+    }
+
+    u16 *p = &dst[y * SCREEN_WIDTH + x];
+    if (is_water_surface_color(*p)) {
+        *p = color;
+    }
+}
+
 static void clear_backbuffer(u16 color) {
     fill_run(g_backbuffer, SCREEN_PIXELS, color);
 }
@@ -267,11 +285,6 @@ static void draw_tile(int center_x, int top_y, int tile_kind, int height_level) 
 
         row[0]         = sprite->dark;
         row[width - 1] = sprite->dark;
-
-        if (tile_kind == 2 && width > 4) {
-            int hi  = ((phase << 1) + y) % (width - 2) + 1;
-            row[hi] = WATER_SPARKLE;
-        }
     }
 }
 
@@ -368,7 +381,7 @@ static void draw_world(void) {
 }
 
 static void draw_water_overlay(u16 *dst) {
-    int phase = (int)((g_frame_counter >> 2) & 15u);
+    int phase = (int)((g_frame_counter >> 2) & 31u);
 
     for (int y = 0; y < WORLD_SIZE; y++) {
         for (int x = 0; x < WORLD_SIZE; x++) {
@@ -379,13 +392,34 @@ static void draw_water_overlay(u16 *dst) {
             int center_x   = ORIGIN_X + (x - y) * TILE_W_HALF;
             int base_top_y = ORIGIN_Y + (x + y) * TILE_H_HALF;
             int top_y      = base_top_y - g_world_height[y][x] * HEIGHT_STEP;
-            int row        = 2 + ((phase + x + y) & 3);
-            int span       = g_span_lut[row];
-            int width      = (span << 1) + 1;
-            int left       = center_x - span;
-            int slot       = (phase + x * 3 + y * 5) % (width - 2);
+            int row_a      = 2 + ((phase + x + y) & 1);
+            int row_b      = 4 + ((phase + x + y + 1) & 1);
 
-            put_pixel_safe(dst, left + 1 + slot, top_y + row, WATER_SPARKLE);
+            int rows[2] = {row_a, row_b};
+
+            for (int r = 0; r < 2; r++) {
+                int row   = rows[r];
+                int span  = g_span_lut[row];
+                int left  = center_x - span;
+                int right = center_x + span;
+                int sy    = top_y + row;
+
+                if (right - left <= 2) {
+                    continue;
+                }
+
+                for (int px = left + 1; px < right; px++) {
+                    int pattern = (px + phase * (r == 0 ? 2 : -2) + x * 3 + y * 5 + r * 7) & 7;
+                    if (pattern <= 1) {
+                        put_water_pixel(dst, px, sy, WATER_WAVE_LIGHT);
+                    } else if (pattern == 4) {
+                        put_water_pixel(dst, px, sy, WATER_WAVE_DARK);
+                    }
+                }
+
+                int sparkle_pos = left + 1 + ((phase * 3 + x * 7 + y * 11 + r * 5) % (right - left - 1));
+                put_water_pixel(dst, sparkle_pos, sy, WATER_SPARKLE);
+            }
         }
     }
 }

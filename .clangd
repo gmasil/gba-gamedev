@@ -1,0 +1,19 @@
+CompileFlags:
+  Add:
+    - --target=arm-none-eabi
+    - -mcpu=arm7tdmi
+    - -mthumb
+    - -Iinclude
+    - -Ibuild
+    - -Ibuild_sram
+    - -Ibuild_end_of_flash
+    - -I/opt/devkitpro/libgba/include
+    - -I/opt/devkitpro/libtonc/include
+    - -I/opt/devkitpro/devkitARM/arm-none-eabi/include
+    - -I/opt/devkitpro/devkitARM/lib/gcc/arm-none-eabi/15.2.0/include
+    - -I/opt/devkitpro/devkitARM/lib/gcc/arm-none-eabi/15.2.0/include-fixed
+    - -I/opt/devkitpro/devkitARM/arm-none-eabi/include/c++/15.2.0
+    - -I/opt/devkitpro/devkitARM/arm-none-eabi/include/c++/15.2.0/arm-none-eabi
+    - -I/opt/devkitpro/devkitARM/arm-none-eabi/include/c++/15.2.0/backward
+  Remove:
+    - -mthumb-interwork
